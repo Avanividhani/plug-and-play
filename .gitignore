@@ -1,0 +1,20 @@
+﻿node_modules/
+dist/
+dist-electron/
+release/
+*.local
+.env
+.env.*
+!.env.example
+# Packaged AI defaults (inlined into dist-electron — do not commit secrets)
+electron/bundledKeys.ts
+*.dat
+.DS_Store
+Thumbs.db
+*.log
+tsconfig.tsbuildinfo
+.vite/
+
+# Built/bundled Electron entry (may inline keys; use electron/ + vite build)
+main.js
+
