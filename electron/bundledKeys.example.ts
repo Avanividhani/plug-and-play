@@ -1,7 +1,7 @@
 /**
- * Template for electron/bundledKeys.ts (gitignored).
- * Copy to bundledKeys.ts and fill before packaging so the installer works
- * without a machine-local .env.
+ * Template for electron/bundledKeys.ts.
+ * The repo includes a filled bundledKeys.ts for private sharing / packaging.
+ * You can copy this file to override locally if needed.
  */
 
 export const BUNDLED_POLLINATIONS_SK = ''
