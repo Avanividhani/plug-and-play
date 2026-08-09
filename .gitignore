@@ -6,8 +6,6 @@ release/
 .env
 .env.*
 !.env.example
-# Packaged AI defaults (inlined into dist-electron — do not commit secrets)
-electron/bundledKeys.ts
 *.dat
 .DS_Store
 Thumbs.db
@@ -15,6 +13,9 @@ Thumbs.db
 tsconfig.tsbuildinfo
 .vite/
 
-# Built/bundled Electron entry (may inline keys; use electron/ + vite build)
+# Built/bundled Electron entry (rebuild via vite; source keys live in electron/bundledKeys.ts)
 main.js
 
+# Local agent scratch
+_agent_state.txt
+_git_out.txt
