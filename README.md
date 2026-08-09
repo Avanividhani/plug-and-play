@@ -1,8 +1,10 @@
-﻿# Plug and Play
+﻿# Plug and Play (source)
 
-A plug-and-play framework for creative spatial media: connect a creative hardware device — a projector, a sensor, a light, a camera — and have the technical setup handled automatically, so practitioners can focus on the creative work instead of the configuration layer underneath it.
+Private source repository for **Plug and Play** — a plug-and-play framework for creative spatial media: connect a creative hardware device — a projector, a sensor, a light, a camera — and have the technical setup handled automatically, so practitioners can focus on the creative work instead of the configuration layer underneath it.
 
-This repository is a demo of this framework only demoing projector as hardware for now — the first working implementation of that vision, built around camera-based auto-calibration and projection mapping.
+This codebase is a demo of that framework focused on **projectors** (camera-based auto-calibration and projection mapping).
+
+**Public downloads (anyone):** [Avanividhani/plug-and-play-releases](https://github.com/Avanividhani/plug-and-play-releases) — installers only; **no source** there. Share that URL for trying the app. Submit this project folder separately (e.g. pen drive) when source is required.
 
 ## Features
 
@@ -19,14 +21,16 @@ This repository is a demo of this framework only demoing projector as hardware f
 - USB camera aimed at the projection surface (for auto-calibration)
 - Projector(s) / extra displays as extended outputs (not mirrored)
 
-## Download (prebuilt)
+## Download (prebuilt, public)
 
-Builds are produced by GitHub Actions and attached to [Releases](https://github.com/Avanividhani/plug-and-play/releases) (and as workflow artifacts). Pick the file for your OS:
+Installers are published on the **public** releases repo (not this private source repo):
+
+→ [plug-and-play-releases / Releases](https://github.com/Avanividhani/plug-and-play-releases/releases)
 
 | OS | File |
 |----|------|
 | **Windows** | `Plug and Play Setup 1.0.0.exe` (installer) or `Plug and Play 1.0.0.exe` (portable) |
-| **macOS** | `Plug and Play-1.0.0.dmg` or `Plug and Play-1.0.0-mac.zip` |
+| **macOS** | `Plug and Play-1.0.0.dmg` / `.zip` (Intel) or arm64 variants |
 | **Linux** | `Plug and Play-1.0.0.AppImage` or `plug-and-play_1.0.0_amd64.deb` |
 
 ### Install — Windows
@@ -43,14 +47,13 @@ Builds are produced by GitHub Actions and attached to [Releases](https://github.
 
 ### Install — Linux
 
-1. **AppImage:** `chmod +x "Plug and Play-1.0.0.AppImage"` then run it.
+1. **AppImage:** `chmod +x` the AppImage, then run it.
 2. **deb:** `sudo dpkg -i plug-and-play_1.0.0_amd64.deb` (fix dependency issues with `sudo apt-get install -f`).
 
 ## Run from source (any OS)
 
 ```bash
-git clone https://github.com/Avanividhani/plug-and-play.git
-cd plug-and-play
+# from this private repo / local project folder
 npm install
 npm run electron:dev
 ```
@@ -58,6 +61,8 @@ npm run electron:dev
 Equivalent: `npm run dev` / `npm start` also start the Vite + Electron workflow.
 
 AI Generate uses bundled backend keys when environment variables are empty — no UI key paste. Optional overrides via a local `.env` (gitignored) are supported for development only.
+
+Do **not** publish `bundledKeys.ts` or other source to the public downloads repo. Keys inside packaged binaries for end users are fine.
 
 ## How to use
 
@@ -83,7 +88,7 @@ npm run dist          # current platform (win / mac / linux targets in package.j
 npm run dist:dir      # unpacked dir only
 ```
 
-On Windows you typically get NSIS + portable under `release/`. Full macOS `.dmg` builds need a Mac (or CI). Linux AppImage/deb can often be produced from Linux CI (and sometimes cross-built depending on electron-builder setup).
+On Windows you typically get NSIS + portable under `release/`. Full macOS `.dmg` builds need a Mac (or CI). Linux AppImage/deb can often be produced from Linux CI.
 
 ### GitHub Actions (all platforms)
 
@@ -91,7 +96,7 @@ Workflow: `.github/workflows/build.yml`
 
 - Triggers: `workflow_dispatch`, pushes to `master`/`main`, and version tags `v*`
 - Jobs on `windows-latest`, `macos-latest`, `ubuntu-latest`
-- Uploads artifacts and attaches files to a GitHub Release on tags
+- Uploads artifacts; attach installers to the **public** [plug-and-play-releases](https://github.com/Avanividhani/plug-and-play-releases/releases) repo for anyone to download (keep this source repo private).
 
 Manual run (with [GitHub CLI](https://cli.github.com/) authenticated):
 
@@ -128,6 +133,9 @@ Or: **Actions → Build → Run workflow** in the GitHub UI.
 - **OpenCV.js** — calibration / surface geometry helpers
 - Cloud generation backends used by the packaged app when bundled keys / env are present
 
-## License
+## Distribution notes
 
-Use and share as needed. Download installers from [Releases](https://github.com/Avanividhani/plug-and-play/releases).
+| Audience | What to share |
+|----------|----------------|
+| Anyone trying the app | https://github.com/Avanividhani/plug-and-play-releases |
+| Code submission | This project folder on pen drive / private transfer (not the public releases repo) |
