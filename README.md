@@ -29,8 +29,6 @@ Builds are produced by GitHub Actions and attached to [Releases](https://github.
 | **macOS** | `Plug and Play-1.0.0.dmg` or `Plug and Play-1.0.0-mac.zip` |
 | **Linux** | `Plug and Play-1.0.0.AppImage` or `plug-and-play_1.0.0_amd64.deb` |
 
-Private repo: you need collaborator access (see below) before Releases are visible.
-
 ### Install — Windows
 
 1. Download the Setup or portable `.exe`.
@@ -132,4 +130,4 @@ Or: **Actions → Build → Run workflow** in the GitHub UI.
 
 ## License
 
-Use and share as needed within this private repository’s collaborator access.
+Use and share as needed. Download installers from [Releases](https://github.com/Avanividhani/plug-and-play/releases).

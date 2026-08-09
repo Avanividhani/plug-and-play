@@ -2,6 +2,7 @@
   "name": "plug-and-play",
   "version": "1.0.0",
   "description": "Plug and Play — auto projection mapping, calibration, edge blending, AI content",
+  "author": "Avanividhani <avanividhani@users.noreply.github.com>",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -58,6 +59,7 @@
     },
     "linux": {
       "category": "Graphics",
+      "maintainer": "Avanividhani <avanividhani@users.noreply.github.com>",
       "target": [
         {
           "target": "AppImage",
