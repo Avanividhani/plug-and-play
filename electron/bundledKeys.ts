@@ -1,6 +1,6 @@
 /**
  * Built-in AI keys used when env / userData are empty.
- * Intentionally committed for private-repo collaborators and packaged builds.
+ * Used for packaged builds when environment variables are empty.
  * Vite inlines these into dist-electron/main.js for installers.
  */
 

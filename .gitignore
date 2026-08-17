@@ -16,6 +16,9 @@ tsconfig.tsbuildinfo
 # Built/bundled Electron entry (rebuild via vite; source keys live in electron/bundledKeys.ts)
 main.js
 
+pendrive/
+pendrive-downloads/
+
 # Local agent scratch
 _agent_state.txt
 _git_out.txt

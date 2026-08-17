@@ -7,6 +7,8 @@ import { SurfaceMapPanel } from './components/SurfaceMapPanel'
 import { ManualProjectorPanel } from './components/ManualProjectorPanel'
 import { useDisplays } from './hooks/useDisplays'
 import { useCamera } from './hooks/useCamera'
+import { useAudioDevices } from './hooks/useAudioDevices'
+import { friendlyDisplayName, isVrPhantomDisplay } from './lib/displayNames'
 import { DEFAULT_BLEND, type BlendConfig } from './lib/blending'
 import {
   runAutoCalibration,
@@ -138,13 +140,7 @@ export function ControlApp() {
   const [cameraWorkspaceByDisplayId, setCameraWorkspaceByDisplayId] = useState<
     Record<number, CameraWorkspaceState>
   >({})
-  const friendlyProjectorName = useCallback((label: string | undefined, index: number) => {
-    const raw = (label || '').trim()
-    if (!raw || /^display\s*\d+$/i.test(raw)) return `Projector ${index + 1}`
-    const vendor = raw.match(/\b(acer|epson|benq|optoma|sony|lg|samsung|viewsonic)\b/i)?.[1]
-    if (vendor) return `${vendor.charAt(0).toUpperCase()}${vendor.slice(1).toLowerCase()} projector`
-    return raw
-  }, [])
+  const friendlyProjectorName = friendlyDisplayName
   const videoRef = useRef<HTMLVideoElement>(null)
   const alignRef = useRef<CamProjAlign | null>(null)
   const offsetRef = useRef(projOffset)
@@ -198,6 +194,7 @@ export function ControlApp() {
   })
 
   const camera = useCamera()
+  const audio = useAudioDevices()
 
   useEffect(() => {
     if (!window.lumen) return
@@ -256,7 +253,17 @@ export function ControlApp() {
     prevCamerasRef.current = cameraIdsKey
   }, [cameraIdsKey, camera.cameras, pushEvent, pushToast])
 
-  const projectors = useMemo(() => displays.filter((d) => !d.isPrimary), [displays])
+  const projectors = useMemo(
+    () =>
+      displays.filter(
+        (d) => !d.isPrimary && !isVrPhantomDisplay(d.label, d.model, d.manufacturer),
+      ),
+    [displays],
+  )
+  const displayCount = useMemo(
+    () => displays.filter((d) => !isVrPhantomDisplay(d.label, d.model, d.manufacturer)).length,
+    [displays],
+  )
 
   const defaultManualCorners = useCallback(
     () => [
@@ -1847,7 +1854,9 @@ export function ControlApp() {
         <div className="header-status">
           <span className={`status-dot ${liveCount > 0 || camera.stream ? 'live' : ''}`} />
           <span>
-            {projectors.length} projector{projectors.length === 1 ? '' : 's'} · {liveCount} live
+            Displays: {displayCount} · Cameras: {camera.cameras.length} · Audio:{' '}
+            {audio.audioDevices.length}
+            {liveCount > 0 ? ` · ${liveCount} live` : ''}
           </span>
           <span>
             Cam:{' '}
@@ -1865,6 +1874,7 @@ export function ControlApp() {
       <DevicePanel
         displays={displays}
         cameras={camera.cameras}
+        audioDevices={audio.audioDevices}
         selectedCameraId={camera.selectedId}
         onSelectCamera={(id) => {
           camera.setSelectedId(id)
@@ -1876,6 +1886,12 @@ export function ControlApp() {
         events={events}
         cameraScanning={camera.scanning}
         onRefreshCameras={() => camera.refresh()}
+        onRefreshAudio={() => audio.refresh()}
+        audioScanning={audio.scanning}
+        showVirtualCameras={camera.showVirtualCameras}
+        onShowVirtualCamerasChange={camera.setShowVirtualCameras}
+        showAllAudio={audio.showAllAudio}
+        onShowAllAudioChange={audio.setShowAllAudio}
         cameraZoom={cameraZoom}
         onCameraZoom={setCameraZoom}
         projectorModeByDisplayId={projectorModeByDisplayId}

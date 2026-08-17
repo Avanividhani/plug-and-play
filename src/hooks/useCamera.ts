@@ -13,6 +13,8 @@ export function useCamera() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [showVirtualCameras, setShowVirtualCamerasState] = useState(false)
+  const showVirtualRef = useRef(false)
   const streamRef = useRef<MediaStream | null>(null)
 
   const stop = useCallback(() => {
@@ -21,11 +23,12 @@ export function useCamera() {
     setStream(null)
   }, [])
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (includeVirtual?: boolean) => {
+    const withVirtual = includeVirtual ?? showVirtualRef.current
     setScanning(true)
     setError(null)
     try {
-      const list = await enumerateCameras()
+      const list = await enumerateCameras({ includeVirtual: withVirtual })
       setCameras(list)
       const best = pickBestCamera(list)
       setSelectedId((prev) => {
@@ -41,13 +44,22 @@ export function useCamera() {
     }
   }, [])
 
+  const setShowVirtualCameras = useCallback(
+    (show: boolean) => {
+      showVirtualRef.current = show
+      setShowVirtualCamerasState(show)
+      void refresh(show)
+    },
+    [refresh],
+  )
+
   const start = useCallback(
     async (deviceId?: string) => {
       let id = deviceId ?? selectedId
       if (!id) {
         // Enumerate fresh and pick best
         try {
-          const list = await enumerateCameras()
+          const list = await enumerateCameras({ includeVirtual: showVirtualRef.current })
           setCameras(list)
           const best = pickBestCamera(list)
           id = best?.deviceId ?? list[0]?.deviceId ?? null
@@ -69,10 +81,13 @@ export function useCamera() {
         setError(null)
         return s
       } catch (e) {
-        // Try every other camera
-        const list = cameras.length ? cameras : await enumerateCameras()
+        // Try every other camera (skip virtual unless user opted in)
+        const list = cameras.length
+          ? cameras
+          : await enumerateCameras({ includeVirtual: showVirtualRef.current })
         for (const cam of list) {
           if (cam.deviceId === id) continue
+          if (cam.isVirtual && !showVirtualRef.current) continue
           try {
             const s = await openCamera(cam.deviceId)
             streamRef.current = s
@@ -123,5 +138,7 @@ export function useCamera() {
     refresh,
     start,
     stop,
+    showVirtualCameras,
+    setShowVirtualCameras,
   }
 }

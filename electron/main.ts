@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  desktopCapturer,
   dialog,
   ipcMain,
   screen,
@@ -9,11 +10,85 @@ import {
   net,
   safeStorage,
 } from 'electron'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+
+const execFileAsync = promisify(execFile)
+
+type WinMonitorInfo = {
+  name: string
+  manufacturer: string
+  serial: string
+}
+
+let winMonitorCache: { at: number; list: WinMonitorInfo[] } | null = null
+
+/** Windows EDID / WMI friendly monitor names (manufacturer + model when available). */
+async function queryWindowsMonitors(): Promise<WinMonitorInfo[]> {
+  if (process.platform !== 'win32') return []
+  const now = Date.now()
+  if (winMonitorCache && now - winMonitorCache.at < 8000) return winMonitorCache.list
+
+  const script = `
+$ErrorActionPreference = 'SilentlyContinue'
+$items = @()
+Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID | ForEach-Object {
+  $name = -join (($_.UserFriendlyName | Where-Object { $_ -ne 0 }) | ForEach-Object { [char]$_ })
+  $mfg = -join (($_.ManufacturerName | Where-Object { $_ -ne 0 }) | ForEach-Object { [char]$_ })
+  $serial = -join (($_.SerialNumberID | Where-Object { $_ -ne 0 }) | ForEach-Object { [char]$_ })
+  $items += [PSCustomObject]@{
+    name = ($name).Trim()
+    manufacturer = ($mfg).Trim()
+    serial = ($serial).Trim()
+  }
+}
+if (-not $items.Count) {
+  Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPClass -eq 'Monitor' -and $_.Name } | ForEach-Object {
+    $items += [PSCustomObject]@{
+      name = $_.Name
+      manufacturer = $_.Manufacturer
+      serial = ''
+    }
+  }
+}
+$items | ConvertTo-Json -Compress
+`
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { windowsHide: true, timeout: 6000, maxBuffer: 2 * 1024 * 1024 },
+    )
+    const raw = (stdout || '').trim()
+    if (!raw) {
+      winMonitorCache = { at: now, list: [] }
+      return []
+    }
+    const parsed = JSON.parse(raw) as WinMonitorInfo | WinMonitorInfo[]
+    const list = (Array.isArray(parsed) ? parsed : [parsed])
+      .map((m) => ({
+        name: String(m?.name || '').trim(),
+        manufacturer: String(m?.manufacturer || '').trim(),
+        serial: String(m?.serial || '').trim(),
+      }))
+      .filter((m) => m.name.length > 0)
+    winMonitorCache = { at: now, list }
+    return list
+  } catch {
+    winMonitorCache = { at: now, list: [] }
+    return []
+  }
+}
+
+function isGenericDisplayLabel(label: string | undefined): boolean {
+  const raw = (label || '').trim()
+  return !raw || /^(display|screen|monitor)\s*\d*$/i.test(raw)
+}
 import {
   BUNDLED_GEMINI_KEY,
   BUNDLED_POLLINATIONS_AQ,
@@ -641,11 +716,45 @@ function persistMediaBytes(bytes: Buffer, mime?: string, fileName?: string): str
   return registerMediaFile(file)
 }
 
-function displayToInfo(d: Display, index: number) {
+type DisplayInfoPayload = {
+  id: number
+  index: number
+  label: string
+  manufacturer: string | null
+  model: string | null
+  serial: string | null
+  bounds: Electron.Rectangle
+  size: { width: number; height: number }
+  scaleFactor: number
+  isPrimary: boolean
+}
+
+function displayToInfo(
+  d: Display,
+  index: number,
+  extras?: {
+    label?: string
+    manufacturer?: string | null
+    model?: string | null
+    serial?: string | null
+  },
+): DisplayInfoPayload {
+  const electronLabel = (d.label || '').trim()
+  const enriched = (extras?.label || '').trim()
+  // Prefer a real OS / EDID name; never invent brand names here.
+  const label =
+    (!isGenericDisplayLabel(electronLabel) ? electronLabel : null) ||
+    (!isGenericDisplayLabel(enriched) ? enriched : null) ||
+    electronLabel ||
+    enriched ||
+    `Display ${index + 1}`
   return {
     id: d.id,
     index,
-    label: d.label || `Display ${index + 1}`,
+    label,
+    manufacturer: extras?.manufacturer ?? null,
+    model: extras?.model ?? null,
+    serial: extras?.serial ?? null,
     bounds: d.bounds,
     size: d.size,
     scaleFactor: d.scaleFactor,
@@ -653,20 +762,73 @@ function displayToInfo(d: Display, index: number) {
   }
 }
 
-function listDisplays() {
-  return screen.getAllDisplays().map((d, i) => displayToInfo(d, i))
+async function listDisplays(): Promise<DisplayInfoPayload[]> {
+  const displays = screen.getAllDisplays()
+  const [monitors, sources] = await Promise.all([
+    queryWindowsMonitors(),
+    desktopCapturer
+      .getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+      .catch(() => [] as Electron.DesktopCapturerSource[]),
+  ])
+
+  const usedMonitorIdx = new Set<number>()
+  return displays.map((d, i) => {
+    const source = sources.find((s) => s.display_id === String(d.id))
+    // desktopCapturer names are often "Screen 1: SAMSUNG" or similar
+    const capturerName = (source?.name || '')
+      .replace(/^screen\s*\d+\s*[:\-–]\s*/i, '')
+      .trim()
+
+    let monitor: WinMonitorInfo | undefined
+    // Prefer unused WMI row whose name appears in Electron/capturer label
+    const haystack = `${d.label || ''} ${capturerName}`.toLowerCase()
+    const matchedIdx = monitors.findIndex(
+      (m, mi) =>
+        !usedMonitorIdx.has(mi) &&
+        m.name &&
+        haystack.includes(m.name.toLowerCase()),
+    )
+    if (matchedIdx >= 0) {
+      usedMonitorIdx.add(matchedIdx)
+      monitor = monitors[matchedIdx]
+    } else {
+      // Fall back to positional match for unnamed Electron displays
+      const nextIdx = monitors.findIndex((_, mi) => !usedMonitorIdx.has(mi))
+      if (nextIdx >= 0 && isGenericDisplayLabel(d.label) && !capturerName) {
+        usedMonitorIdx.add(nextIdx)
+        monitor = monitors[nextIdx]
+      }
+    }
+
+    const model = monitor?.name || null
+    const manufacturer = monitor?.manufacturer || null
+    const serial = monitor?.serial || null
+    const label =
+      (!isGenericDisplayLabel(d.label) ? d.label : null) ||
+      capturerName ||
+      (manufacturer && model && !model.toLowerCase().includes(manufacturer.toLowerCase())
+        ? `${manufacturer} ${model}`
+        : model) ||
+      undefined
+
+    return displayToInfo(d, i, { label, manufacturer, model, serial })
+  })
 }
 
-function emitDisplayChange(kind: 'added' | 'removed' | 'metrics', display?: Display) {
+async function emitDisplayChange(kind: 'added' | 'removed' | 'metrics', display?: Display) {
+  // Bust WMI cache when topology changes
+  if (kind === 'added' || kind === 'removed') winMonitorCache = null
+  const displays = await listDisplays()
   const payload = {
     kind,
     display: display
-      ? displayToInfo(
+      ? displays.find((x) => x.id === display.id) ??
+        displayToInfo(
           display,
           screen.getAllDisplays().findIndex((x) => x.id === display.id),
         )
       : null,
-    displays: listDisplays(),
+    displays,
     at: Date.now(),
   }
   controlWindow?.webContents.send('devices:display-change', payload)
@@ -841,9 +1003,15 @@ app.whenReady().then(async () => {
   // Only open the UI after the media server is up (or after a failed attempt logged above).
   createControlWindow()
 
-  screen.on('display-added', (_e, display) => emitDisplayChange('added', display))
-  screen.on('display-removed', (_e, display) => emitDisplayChange('removed', display))
-  screen.on('display-metrics-changed', (_e, display) => emitDisplayChange('metrics', display))
+  screen.on('display-added', (_e, display) => {
+    void emitDisplayChange('added', display)
+  })
+  screen.on('display-removed', (_e, display) => {
+    void emitDisplayChange('removed', display)
+  })
+  screen.on('display-metrics-changed', (_e, display) => {
+    void emitDisplayChange('metrics', display)
+  })
 
   ipcMain.handle('displays:list', () => listDisplays())
   ipcMain.handle('projector:open', (_e, displayId: number, index: number) =>

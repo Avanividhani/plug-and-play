@@ -3,7 +3,11 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 export type DisplayInfo = {
   id: number
   index: number
+  /** OS / EDID friendly name when available — never invented by the app. */
   label: string
+  manufacturer: string | null
+  model: string | null
+  serial: string | null
   bounds: { x: number; y: number; width: number; height: number }
   size: { width: number; height: number }
   scaleFactor: number

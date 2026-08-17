@@ -1,6 +1,6 @@
 /**
  * Template for electron/bundledKeys.ts.
- * The repo includes a filled bundledKeys.ts for private sharing / packaging.
+ * Copy to bundledKeys.ts and fill for local builds / packaging.
  * You can copy this file to override locally if needed.
  */
 
